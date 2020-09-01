@@ -1,48 +1,109 @@
-# go-python3
+# go-python3: Python C-API 绑定
 
-**Currently supports python-3.7 only.**
+http://docs.python.org/c-api/index.html
 
-Golang bindings for the C-API of CPython-3.
+安装环境(macOS):
 
-This package provides a ``go`` package named "python" under which most of the
-``PyXYZ`` functions and macros of the public C-API of CPython have been
-exposed. Theoretically, you should be able use https://docs.python.org/3/c-api
-and know what to type in your ``go`` program.
+1. `brew install pkg-config`
+2. `brew install python@3.7`
+3. `brew install intltool`
 
+## Python命令行
 
-This project was inspired by https://github.com/sbinet/go-python. Go and take a look if we need something for python-2.7!
+查看Python版本:
 
-# Install
+```
+$ go run ./examples/python3 -V
+Python 3.7.8
+```
 
-## Deps
+执行 Python 文件:
 
-We will need `pkg-config` and a working `python3.7` environment to build these
-bindings. Make sure you have Python libraries and header files installed as
-well (`python3.7-dev` on Debian or `python3-devel` on Centos for example)..
+```
+$ go run ./examples/python3 ./examples/python3/hello.py
+hello go-python3
+```
 
-By default `pkg-config` will look at the `python3` library so if you want to
-choose a specific version just symlink `python-X.Y.pc` to `python3.pc` or use
-the `PKG_CONFIG_PATH` environment variable.
+打开Python交互环境:
 
-## Go get
+```shell
+$ go run ./examples/python3
+Python 3.7.8 (default, Jul  8 2020, 14:18:28) 
+[Clang 11.0.3 (clang-1103.0.32.62)] on darwin
+Type "help", "copyright", "credits" or "license" for more information.
+>>> print(123)
+123
+>>> quit()
+```
 
-Then simply `go get github.com/DataDog/go-python3`
+执行 Python 脚本字符串:
 
-# API
+```shell
+$ go run ./examples/python3 -c "import sys;print(sys.path)"
+$ PYTHONPATH="" go run ./examples/python3 -c "import sys;print(sys.path)"
+```
 
-Some functions mix go code and call to Python function. Those functions will
-return and `int` and `error` type. The `int` represent the Python result code
-and the `error` represent any issue from the Go layer.
+## 例子: Go代码嵌入Python
 
-Example:
+```go
+package main
 
-`func PyRun_AnyFile(filename string)` open `filename` and then call CPython API
-function `int PyRun_AnyFile(FILE *fp, const char *filename)`.
+import (
+	"fmt"
 
-Therefore its signature is `func PyRun_AnyFile(filename string) (int, error)`,
-the `int` represent the error code from the CPython `PyRun_AnyFile` function
-and error will be set if we failed to open `filename`.
+	. "github.com/chai2010/go-python3"
+)
 
-If an error is raise before calling th CPython function `int` default to `-1`.
+func main() {
+	Py_Initialize()
+	defer Py_Finalize()
 
-Take a look at some [examples](examples)
+	pystr := PyUnicode_FromString("go-python3")
+	str := PyUnicode_AsUTF8(pystr)
+
+	fmt.Println("hello", str)
+}
+```
+
+```
+$ go run hello.go 
+hello go-python3
+```
+
+## 例子: 调用print内置函数
+
+```go
+package main
+
+import (
+	. "github.com/chai2010/go-python3"
+)
+
+func main() {
+	Py_Initialize()
+	defer Py_Finalize()
+
+	builtins := PyEval_GetBuiltins()
+	builtins_print := PyDict_GetItemString(builtins, "print")
+
+	arg := PyUnicode_FromString("hi print")
+	defer arg.DecRef()
+
+	code := builtins_print.CallFunctionObjArgs(arg)
+	defer code.DecRef()
+}
+```
+
+```
+$ go run ./examples/print
+hi print
+```
+
+## 补充说明
+
+- Macos: 依赖 `/usr/local/opt/python@3.7/Frameworks/Python.framework/Versions/3.7/Python` 文件. 如果缺少, 可以用替代 `./libgo-python3.7.dylib`.
+- Linux: 需要自己构建 `libpython3.7.so`, 然后改名为 `./libgo-python3.7.so`.
+
+<!--
+TODO: Go通过CGO为Py编写扩展
+-->
